@@ -95,7 +95,12 @@ async function startServer() {
       );
 
       // Injeta os dados da requisição no contexto inicial
-      engine.context['webhook_data'] = { query: req.query, body: req.body };
+      engine.context['webhook_data'] = { 
+          query: req.query, 
+          body: req.body,
+          headers: req.headers,
+          method: req.method
+      };
 
       // Executa o fluxo
       await engine.run();

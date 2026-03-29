@@ -43,34 +43,41 @@ export class FlowEngine {
   private async fetchWithRetry(url: string, options: any, nodeId: string, label: string): Promise<any> {
     let attempts = 0;
     const totalKeys = JSON.parse(keyManager.getStatus()).total;
-    // Se tivermos chaves no pool, tentamos rodar o pool inteiro. Se não, tentamos 3 vezes padrão.
     const maxRetries = totalKeys > 0 ? totalKeys + 1 : 3;
 
     while (attempts < maxRetries) {
         const activeKey = keyManager.getActiveKey();
         let finalUrl = url;
 
-        // Injeta a chave na URL se for Google API
         if (url.includes('googleapis.com') && activeKey) {
-            // Remove chave antiga se existir para não duplicar
-            const urlObj = new URL(url);
-            urlObj.searchParams.set('key', activeKey);
-            finalUrl = urlObj.toString();
+            try {
+                const urlObj = new URL(url);
+                urlObj.searchParams.set('key', activeKey);
+                finalUrl = urlObj.toString();
+            } catch (e) {
+                // Se não for uma URL válida (ex: mock), ignora
+            }
         }
 
         try {
             const response = await fetch(finalUrl, options);
             const status = response.status;
+            const contentType = response.headers.get('content-type') || '';
 
-            if (response.ok) {
-                return await response.json();
+            let responseData;
+            if (contentType.includes('application/json')) {
+                responseData = await response.json();
+            } else {
+                responseData = await response.text();
             }
 
-            // LÊ O ERRO UMA ÚNICA VEZ PARA EVITAR "STREAM ALREADY READ"
-            const errorText = await response.text();
+            if (response.ok) {
+                return responseData;
+            }
 
-            // TRATAMENTO DE ERROS DE CHAVE (403: Referrer/Forbidden/Leaked, 400: Invalid, 429: Quota)
-            if (status === 403 || status === 400 || status === 429) {
+            // TRATAMENTO DE ERROS DE CHAVE (Google APIs)
+            if (url.includes('googleapis.com') && (status === 403 || status === 400 || status === 429)) {
+                const errorText = typeof responseData === 'string' ? responseData : JSON.stringify(responseData);
                 const isLeaked = errorText.toLowerCase().includes('leaked');
                 let logMsg = `🔄 Chave #${keyManager.getCurrentIndex() + 1} falhou (${status}). Rotacionando...`;
                 
@@ -80,25 +87,57 @@ export class FlowEngine {
 
                 console.warn(`[FlowEngine] ${logMsg}`, errorText.substring(0, 100));
                 
-                // Tenta rotacionar a chave
                 if (keyManager.markCurrentKeyAsFailed()) {
                     this.addLog(createLog(nodeId, label, 'WARN', logMsg));
                     attempts++;
                     await wait(200);
-                    continue; // Tenta com a próxima chave
+                    continue; 
                 }
             }
 
-            // Se não for erro de chave ou se acabaram as chaves, lança o erro final
-            throw new Error(`Erro API (${status}): ${errorText.substring(0, 300)}`);
+            const errorDetail = typeof responseData === 'string' ? responseData : JSON.stringify(responseData);
+            throw new Error(`Erro API (${status}): ${errorDetail.substring(0, 300)}`);
 
         } catch (err: any) {
-            // Se for erro de rede (fetch failed) ou se as tentativas acabaram
             if (attempts >= maxRetries - 1) throw err;
             attempts++;
             await wait(500);
         }
     }
+  }
+
+  private resolveVariables(text: string): string {
+    if (!text || typeof text !== 'string') return text;
+    
+    // Suporta {{input.path.to.key}}, {{webhook_data.path}}, etc.
+    return text.replace(/{{([\w\.]+)}}/g, (match, path) => {
+      const parts = path.split('.');
+      let current: any = this.context;
+      
+      for (const part of parts) {
+        if (current && typeof current === 'object' && part in current) {
+          current = current[part];
+        } else {
+          // Se não encontrou no root, tenta dentro do 'input' automaticamente
+          if (parts[0] !== 'input' && parts[0] !== 'webhook_data' && this.context['input']) {
+              let fallback = this.context['input'];
+              for (const p of parts) {
+                  if (fallback && typeof fallback === 'object' && p in fallback) {
+                      fallback = fallback[p];
+                  } else {
+                      fallback = undefined;
+                      break;
+                  }
+              }
+              if (fallback !== undefined) return typeof fallback === 'object' ? JSON.stringify(fallback) : String(fallback);
+          }
+          return match; 
+        }
+      }
+      
+      if (current === undefined) return match;
+      return typeof current === 'object' ? JSON.stringify(current) : String(current);
+    });
   }
 
   private async executeNode(node: FlowNode): Promise<boolean> {
@@ -120,29 +159,43 @@ export class FlowEngine {
             let url = config?.url;
             if (!url) throw new Error("URL não definida no nó.");
 
+            // Resolve variáveis na URL
+            url = this.resolveVariables(url);
+
             const method = (config?.method || 'GET').toUpperCase();
-            const body = config?.body ? (typeof config.body === 'string' ? JSON.parse(config.body) : config.body) : undefined;
+            let body = config?.body;
+
+            // Se for string, tenta resolver variáveis e parsear se for JSON
+            if (typeof body === 'string') {
+                body = this.resolveVariables(body);
+                try {
+                    body = JSON.parse(body);
+                } catch (e) {
+                    // Mantém como string se não for JSON válido
+                }
+            }
             
+            const headers = { 
+                'Content-Type': 'application/json',
+                ...(config?.headers || {}) 
+            };
+
             const responseData = await this.fetchWithRetry(url, { 
                 method, 
-                headers: { 'Content-Type': 'application/json' }, 
-                body: method !== 'GET' ? JSON.stringify(body) : undefined 
+                headers, 
+                body: method !== 'GET' ? (typeof body === 'object' ? JSON.stringify(body) : body) : undefined 
             }, node.id, label);
             
             this.context[node.id] = responseData;
             this.context['input'] = responseData; 
-            this.addLog(createLog(node.id, label, 'SUCCESS', `📦 Requisição concluída.`));
+            
+            const logPreview = typeof responseData === 'object' ? 'JSON Data' : String(responseData).substring(0, 30);
+            this.addLog(createLog(node.id, label, 'SUCCESS', `📦 Resposta recebida (${method}): ${logPreview}...`));
             break;
 
           case NodeType.GEMINI:
             let prompt = config?.prompt || 'Olá, como posso ajudar?';
-            const inputData = this.context['input'];
-            
-            // Substitui {{input}} pelo conteúdo do node anterior
-            if (prompt.includes('{{input}}')) {
-                const replacement = typeof inputData === 'object' ? JSON.stringify(inputData) : String(inputData || '');
-                prompt = prompt.replace('{{input}}', replacement);
-            }
+            prompt = this.resolveVariables(prompt);
 
             const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent`;
             
