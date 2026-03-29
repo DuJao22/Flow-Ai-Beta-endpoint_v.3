@@ -117,6 +117,9 @@ export class FlowEngine {
       for (const part of parts) {
         if (current && typeof current === 'object' && part in current) {
           current = current[part];
+        } else if (typeof current === 'string' && part === 'text') {
+          // Permite que {{input.text}} retorne a própria string se input for uma string
+          current = current;
         } else {
           // Se não encontrou no root, tenta dentro do 'input' automaticamente
           if (parts[0] !== 'input' && parts[0] !== 'webhook_data' && this.context['input']) {
@@ -124,6 +127,8 @@ export class FlowEngine {
               for (const p of parts) {
                   if (fallback && typeof fallback === 'object' && p in fallback) {
                       fallback = fallback[p];
+                  } else if (typeof fallback === 'string' && p === 'text') {
+                      fallback = fallback;
                   } else {
                       fallback = undefined;
                       break;
@@ -200,7 +205,13 @@ export class FlowEngine {
             }, node.id, label);
             
             this.context[node.id] = responseData;
-            this.context['input'] = responseData; 
+            
+            // Auto-extrai o texto da resposta do Gemini se for uma requisição HTTP direta para a API
+            if (url.includes('generativelanguage.googleapis.com') && responseData?.candidates?.[0]?.content?.parts?.[0]?.text) {
+                this.context['input'] = responseData.candidates[0].content.parts[0].text;
+            } else {
+                this.context['input'] = responseData; 
+            }
             
             const logPreview = typeof responseData === 'object' ? 'JSON Data' : String(responseData).substring(0, 30);
             this.addLog(createLog(node.id, label, 'SUCCESS', `📦 Resposta recebida (${method}): ${logPreview}...`));

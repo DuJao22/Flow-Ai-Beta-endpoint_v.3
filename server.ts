@@ -146,7 +146,18 @@ async function startServer() {
     
     try {
       const flows = loadFlows();
-      const flow = flows[flowId];
+      let flow = flows[flowId];
+
+      // Se o payload contiver nodes e edges, assume que é um fluxo dinâmico/atualizado
+      const hasDynamicFlow = req.body && Array.isArray(req.body.nodes) && Array.isArray(req.body.edges);
+      
+      if (hasDynamicFlow) {
+          console.log(`[Webhook] Payload contém nodes e edges. Atualizando e executando fluxo dinâmico.`);
+          flow = { nodes: req.body.nodes, edges: req.body.edges };
+          // Atualiza o fluxo salvo com a nova estrutura
+          flows[flowId] = flow;
+          saveFlows(flows);
+      }
 
       if (!flow) {
         console.error(`[Webhook] Fluxo ${flowId} não encontrado.`);
@@ -155,7 +166,8 @@ async function startServer() {
 
       const webhookData = { 
           query: req.query, 
-          body: req.body,
+          // Se enviou o fluxo no body, os dados reais devem estar em req.body.data
+          body: hasDynamicFlow ? (req.body.data || {}) : req.body,
           headers: req.headers,
           method: req.method
       };
