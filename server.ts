@@ -18,6 +18,7 @@ const saveToHistory = (entry: any) => {
       history = JSON.parse(content);
     }
     history.unshift({
+      id: Date.now().toString(36) + Math.random().toString(36).substring(2, 10),
       timestamp: new Date().toISOString(),
       ...entry
     });
@@ -168,7 +169,9 @@ async function startServer() {
         success: false,
         flowId,
         error: error.message,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        logs: [],
+        files: []
       };
       saveToHistory(errorResult);
       res.status(500).json(errorResult);

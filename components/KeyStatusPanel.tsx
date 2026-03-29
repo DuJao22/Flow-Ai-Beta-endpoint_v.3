@@ -21,13 +21,13 @@ const KeyStatusPanel: React.FC = () => {
         className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 rounded-lg border border-gray-700 cursor-pointer transition-all"
       >
         <div className="flex -space-x-1">
-            {keyDetails.slice(0, 5).map((k) => (
+            {(keyDetails || []).slice(0, 5).map((k) => (
                 <div 
                     key={k.index} 
                     className={`w-2 h-2 rounded-full border border-gray-900 ${k.isFailed ? 'bg-red-500' : k.isActive ? 'bg-green-400 animate-pulse' : 'bg-gray-500'}`}
                 />
             ))}
-            {keyDetails.length > 5 && <div className="text-[8px] text-gray-500 pl-2">+{keyDetails.length - 5}</div>}
+            {(keyDetails || []).length > 5 && <div className="text-[8px] text-gray-500 pl-2">+{keyDetails.length - 5}</div>}
         </div>
         <div className="flex flex-col">
             <span className="text-[9px] font-bold text-gray-400 leading-none">KEY STATUS</span>
@@ -50,7 +50,7 @@ const KeyStatusPanel: React.FC = () => {
           </div>
           
           <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar pr-1">
-            {keyDetails.map((k) => (
+            {(keyDetails || []).map((k) => (
               <div key={k.index} className={`flex items-center justify-between p-2 rounded-lg border ${k.isActive ? 'bg-blue-900/20 border-blue-500/50' : 'bg-gray-850 border-gray-800'}`}>
                 <div className="flex items-center gap-2">
                     <div className={`w-2 h-2 rounded-full ${k.isFailed ? 'bg-red-500' : k.isActive ? 'bg-green-500' : 'bg-gray-600'}`}></div>

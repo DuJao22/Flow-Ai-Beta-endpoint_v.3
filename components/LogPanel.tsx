@@ -71,7 +71,9 @@ const LogPanel: React.FC<LogPanelProps> = ({ logs, isOpen = true, onToggle, onSe
             {logs.map((log) => (
             <div key={log.id} className="relative flex flex-col gap-1 group">
                 <div className="flex items-center gap-2 w-full select-none">
-                    <span className="text-gray-600 text-[10px] w-16 font-mono shrink-0 text-right">{log.timestamp.split('T')[1].split('.')[0]}</span>
+                    <span className="text-gray-600 text-[10px] w-16 font-mono shrink-0 text-right">
+                        {(log.timestamp || '').includes('T') ? log.timestamp.split('T')[1].split('.')[0] : '--:--:--'}
+                    </span>
                     
                     <span className={`font-bold px-2 py-0.5 rounded text-[10px] border shrink-0 flex items-center gap-1 ${getLevelColor(log.level)}`}>
                         {getLevelIcon(log.level)} {log.level}

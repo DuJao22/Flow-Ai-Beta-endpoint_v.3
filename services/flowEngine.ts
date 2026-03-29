@@ -109,8 +109,8 @@ export class FlowEngine {
   private resolveVariables(text: string): string {
     if (!text || typeof text !== 'string') return text;
     
-    // Suporta {{input.path.to.key}}, {{webhook_data.path}}, etc.
-    return text.replace(/{{([\w\.]+)}}/g, (match, path) => {
+    // Suporta {{input.path.to.key}}, {{webhook_data.path}}, etc. com espaços e hífens
+    return text.replace(/{{[\s]*([\w\.\-]+)[\s]*}}/g, (match, path) => {
       const parts = path.split('.');
       let current: any = this.context;
       
@@ -165,20 +165,27 @@ export class FlowEngine {
             const method = (config?.method || 'GET').toUpperCase();
             let body = config?.body;
 
-            // Se for string, tenta resolver variáveis e parsear se for JSON
-            if (typeof body === 'string') {
-                body = this.resolveVariables(body);
-                try {
-                    body = JSON.parse(body);
-                } catch (e) {
-                    // Mantém como string se não for JSON válido
+            // Resolve variáveis no corpo (seja string ou objeto)
+            if (body) {
+                if (typeof body === 'string') {
+                    body = this.resolveVariables(body);
+                    try { body = JSON.parse(body); } catch (e) {}
+                } else if (typeof body === 'object') {
+                    const bodyStr = JSON.stringify(body);
+                    const resolvedBodyStr = this.resolveVariables(bodyStr);
+                    try { body = JSON.parse(resolvedBodyStr); } catch (e) { body = resolvedBodyStr; }
                 }
             }
             
-            const headers = { 
-                'Content-Type': 'application/json',
-                ...(config?.headers || {}) 
+            const headers: Record<string, string> = { 
+                'Content-Type': 'application/json'
             };
+            
+            if (config?.headers) {
+                Object.entries(config.headers).forEach(([key, value]) => {
+                    headers[key] = this.resolveVariables(String(value));
+                });
+            }
 
             const logBody = method !== 'GET' && body ? (typeof body === 'object' ? JSON.stringify(body).substring(0, 200) : String(body).substring(0, 200)) : 'N/A';
             this.addLog(createLog(node.id, label, 'INFO', `🚀 Enviando ${method} para: ${url.substring(0, 60)}...`));
@@ -230,14 +237,14 @@ export class FlowEngine {
             break;
 
           case NodeType.LOGGER:
-            const logMsg = config?.message || 'Log manual executado.';
+            const logMsg = this.resolveVariables(config?.message || 'Log manual executado.');
             this.addLog(createLog(node.id, label, 'INFO', `📝 ${logMsg}`));
             break;
 
           case NodeType.DISCORD:
-            const discordWebhook = config?.webhookUrl;
+            const discordWebhook = this.resolveVariables(config?.webhookUrl || '');
             if (!discordWebhook) throw new Error("Webhook do Discord não configurado.");
-            const discordContent = config?.content || 'Mensagem do Flow Architect AI';
+            const discordContent = this.resolveVariables(config?.content || 'Mensagem do Flow Architect AI');
             
             await fetch(discordWebhook, {
               method: 'POST',
@@ -248,10 +255,10 @@ export class FlowEngine {
             break;
 
           case NodeType.TELEGRAM:
-            const botToken = config?.botToken;
-            const chatId = config?.chatId;
+            const botToken = this.resolveVariables(config?.botToken || '');
+            const chatId = this.resolveVariables(config?.chatId || '');
             if (!botToken || !chatId) throw new Error("Token ou Chat ID do Telegram não configurado.");
-            const telegramText = config?.text || 'Mensagem do Flow Architect AI';
+            const telegramText = this.resolveVariables(config?.text || 'Mensagem do Flow Architect AI');
             
             await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
               method: 'POST',
@@ -265,7 +272,13 @@ export class FlowEngine {
             this.addLog(createLog(node.id, label, 'INFO', `🔗 Webhook recebido.`));
             // Injeta os dados do webhook no input para o próximo nó
             if (this.context['webhook_data']) {
-                this.context['input'] = this.context['webhook_data'];
+                // Prioriza o body se existir e não for vazio, facilitando o acesso via {{input.campo}}
+                const webhookData = this.context['webhook_data'];
+                const dataToInject = (webhookData.body && typeof webhookData.body === 'object' && Object.keys(webhookData.body).length > 0)
+                    ? webhookData.body
+                    : webhookData;
+                
+                this.context['input'] = dataToInject;
                 this.addLog(createLog(node.id, label, 'SUCCESS', `📥 Dados do webhook injetados no fluxo.`));
             }
             break;
@@ -335,7 +348,10 @@ export class FlowEngine {
   }
 
   public async run() {
-    this.context = {}; 
+    // Não limpa o contexto se ele já tiver dados (ex: webhook_data injetado pelo servidor)
+    if (!this.context || Object.keys(this.context).length === 0) {
+        this.context = {}; 
+    }
     const startNodes = this.nodes.filter(n => n.data.type === NodeType.START || n.data.type === NodeType.WEBHOOK);
     const queue: FlowNode[] = startNodes.length > 0 ? startNodes : [this.nodes[0]];
 

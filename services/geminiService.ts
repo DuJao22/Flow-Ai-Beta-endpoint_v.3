@@ -55,8 +55,8 @@ export const generateFlowFromPrompt = async (userPrompt: string, context?: FlowC
       
       let finalPromptParts: any[] = [{ text: SYSTEM_PROMPT }];
 
-      if (context) {
-          const recentLogs = context.logs.slice(-5).map(l => `[${l.level}] ${l.nodeLabel}: ${l.message}`).join('\n');
+      if (context && context.logs) {
+          const recentLogs = (context.logs || []).slice(-5).map(l => `[${l.level}] ${l.nodeLabel}: ${l.message}`).join('\n');
           const contextString = `\nCONTEXTO ATUAL:\nNodes: ${context.currentNodes.length}\nLogs Recentes:\n${recentLogs}`;
           finalPromptParts.push({ text: contextString });
       }

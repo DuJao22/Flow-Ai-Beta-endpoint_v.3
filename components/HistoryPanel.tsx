@@ -66,7 +66,9 @@ const HistoryPanel: React.FC = () => {
       {history.map((entry) => {
         const isExpanded = expandedId === entry.id;
         const date = new Date(entry.timestamp);
-        const hasError = entry.logs.some(l => l.level === 'ERROR');
+        const logs = entry.logs || [];
+        const files = entry.files || [];
+        const hasError = logs.some(l => l.level === 'ERROR');
 
         return (
           <div key={entry.id} className={cn(
@@ -86,7 +88,7 @@ const HistoryPanel: React.FC = () => {
                 </div>
                 <div className="flex flex-col">
                     <span className="text-[11px] font-black text-gray-200 uppercase tracking-tight">
-                        Execução {entry.id.slice(0, 8)}
+                        Execução {String(entry.id || '').slice(0, 8) || 'Desconhecida'}
                     </span>
                     <span className="text-[9px] text-gray-500 font-mono">
                         {date.toLocaleDateString()} {date.toLocaleTimeString()}
@@ -97,11 +99,11 @@ const HistoryPanel: React.FC = () => {
                   <div className="hidden sm:flex items-center gap-3">
                       <div className="flex items-center gap-1 text-[9px] text-gray-500 font-bold uppercase">
                           <TerminalIcon className="w-3 h-3" />
-                          {entry.logs.length}
+                          {logs.length}
                       </div>
                       <div className="flex items-center gap-1 text-[9px] text-gray-500 font-bold uppercase">
                           <FileText className="w-3 h-3" />
-                          {entry.files.length}
+                          {files.length}
                       </div>
                   </div>
                   <ChevronDown className={cn("w-4 h-4 text-gray-600 transition-transform", isExpanded && "rotate-180")} />
@@ -149,28 +151,37 @@ const HistoryPanel: React.FC = () => {
                         Logs de Execução
                     </div>
                     <div className="space-y-1 max-h-40 overflow-y-auto custom-scrollbar pr-2">
-                        {entry.logs.map((log, i) => (
-                            <div key={i} className="flex items-start gap-2 text-[10px] font-mono py-1 border-b border-gray-800/50 last:border-0">
-                                <span className={cn(
-                                    "shrink-0 w-1.5 h-1.5 rounded-full mt-1",
-                                    log.level === 'ERROR' ? "bg-red-500" : log.level === 'SUCCESS' ? "bg-emerald-500" : "bg-blue-500"
-                                )} />
-                                <span className="text-gray-500 shrink-0">[{log.nodeLabel}]</span>
-                                <span className="text-gray-300 break-all">{log.message.slice(0, 100)}{log.message.length > 100 ? '...' : ''}</span>
-                            </div>
-                        ))}
+                        {logs.length > 0 ? logs.map((log, i) => {
+                            if (!log) return null;
+                            const message = log.message || '';
+                            return (
+                                <div key={i} className="flex items-start gap-2 text-[10px] font-mono py-1 border-b border-gray-800/50 last:border-0">
+                                    <span className={cn(
+                                        "shrink-0 w-1.5 h-1.5 rounded-full mt-1",
+                                        log.level === 'ERROR' ? "bg-red-500" : log.level === 'SUCCESS' ? "bg-emerald-500" : "bg-blue-500"
+                                    )} />
+                                    <span className="text-gray-500 shrink-0">[{log.nodeLabel || 'Log'}]</span>
+                                    <span className="text-gray-300 break-all">
+                                        {String(message).slice(0, 100)}
+                                        {String(message).length > 100 ? '...' : ''}
+                                    </span>
+                                </div>
+                            );
+                        }) : (
+                            <div className="text-[10px] text-gray-600 italic py-2">Nenhum log registrado.</div>
+                        )}
                     </div>
                 </div>
 
                 {/* Files Generated */}
-                {entry.files.length > 0 && (
+                {files.length > 0 && (
                     <div className="space-y-1.5">
                         <div className="flex items-center gap-2 text-[9px] font-black text-emerald-400 uppercase tracking-widest">
                             <FileText className="w-3 h-3" />
                             Arquivos Gerados
                         </div>
                         <div className="flex flex-wrap gap-2">
-                            {entry.files.map((file, i) => (
+                            {files.map((file, i) => (
                                 <div key={i} className="px-2 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded text-[10px] text-emerald-300 font-mono">
                                     {file.name}
                                 </div>
