@@ -7,6 +7,27 @@ import { FlowEngine } from "./services/flowEngine";
 import { FlowNode, FlowEdge, LogEntry, GeneratedFile, NodeType } from "./types";
 
 const FLOWS_FILE = path.join(process.cwd(), "flows.json");
+const HISTORY_FILE = path.join(process.cwd(), "execution_history.json");
+
+// Helper para salvar histórico
+const saveToHistory = (entry: any) => {
+  try {
+    let history = [];
+    if (fs.existsSync(HISTORY_FILE)) {
+      const content = fs.readFileSync(HISTORY_FILE, "utf-8");
+      history = JSON.parse(content);
+    }
+    history.unshift({
+      timestamp: new Date().toISOString(),
+      ...entry
+    });
+    // Mantém apenas as últimas 50 execuções
+    if (history.length > 50) history = history.slice(0, 50);
+    fs.writeFileSync(HISTORY_FILE, JSON.stringify(history, null, 2));
+  } catch (err) {
+    console.error("Erro ao salvar histórico:", err);
+  }
+};
 
 // Helper to load flows from server-side storage
 function loadFlows(): Record<string, { nodes: FlowNode[], edges: FlowEdge[] }> {
@@ -30,11 +51,74 @@ function saveFlows(flows: Record<string, { nodes: FlowNode[], edges: FlowEdge[] 
   }
 }
 
+// Função comum para execução de fluxos
+async function executeFlow(nodes: FlowNode[], edges: FlowEdge[], initialContext: any = {}, flowId?: string) {
+  const logs: LogEntry[] = [];
+  const files: GeneratedFile[] = [];
+  let currentNodes = [...nodes];
+
+  // Callbacks simulados para o FlowEngine no backend
+  const setNodes = (updateFn: any) => {
+    if (typeof updateFn === 'function') {
+      currentNodes = updateFn(currentNodes);
+    } else {
+      currentNodes = updateFn;
+    }
+  };
+
+  const addLog = (log: LogEntry) => {
+    logs.push(log);
+    console.log(`[FlowEngine] [${log.level}] ${log.message}`);
+  };
+
+  const onFileGenerated = (file: GeneratedFile) => {
+    files.push(file);
+    console.log(`[FlowEngine] 💾 Arquivo gerado: ${file.name}`);
+  };
+
+  const engine = new FlowEngine(
+    currentNodes,
+    edges,
+    setNodes,
+    addLog,
+    onFileGenerated
+  );
+
+  // Injeta os dados da requisição no contexto inicial
+  engine.context['webhook_data'] = initialContext;
+
+  // Executa o fluxo
+  await engine.run();
+
+  const result = {
+    success: true,
+    flowId,
+    timestamp: new Date().toISOString(),
+    webhook_received: initialContext,
+    logs,
+    files,
+    finalNodesState: currentNodes
+  };
+
+  saveToHistory(result);
+  return result;
+}
+
 async function startServer() {
   const app = express();
 
   app.use(cors());
   app.use(express.json({ limit: '50mb' }));
+
+  // Endpoint para ver o histórico de execuções
+  app.get("/api/history", (req, res) => {
+    if (fs.existsSync(HISTORY_FILE)) {
+      const content = fs.readFileSync(HISTORY_FILE, "utf-8");
+      res.json(JSON.parse(content));
+    } else {
+      res.json([]);
+    }
+  });
 
   // Endpoint para salvar um fluxo no servidor e obter um Webhook ID
   app.post("/api/save-flow", (req, res) => {
@@ -56,72 +140,45 @@ async function startServer() {
 
   // Endpoint de Gatilho (Webhook) - Executa um fluxo salvo via GET ou POST
   app.all("/api/trigger/:flowId", async (req, res) => {
+    const { flowId } = req.params;
+    console.log(`[Webhook] Recebido gatilho para o fluxo: ${flowId}`);
+    
     try {
-      const { flowId } = req.params;
       const flows = loadFlows();
       const flow = flows[flowId];
 
       if (!flow) {
+        console.error(`[Webhook] Fluxo ${flowId} não encontrado.`);
         return res.status(404).json({ error: "Fluxo não encontrado no servidor." });
       }
 
-      const logs: LogEntry[] = [];
-      const files: GeneratedFile[] = [];
-      let currentNodes = [...flow.nodes];
-
-      // Callbacks simulados para o FlowEngine no backend
-      const setNodes = (updateFn: any) => {
-        if (typeof updateFn === 'function') {
-          currentNodes = updateFn(currentNodes);
-        } else {
-          currentNodes = updateFn;
-        }
-      };
-
-      const addLog = (log: LogEntry) => {
-        logs.push(log);
-      };
-
-      const onFileGenerated = (file: GeneratedFile) => {
-        files.push(file);
-      };
-
-      const engine = new FlowEngine(
-        currentNodes,
-        flow.edges,
-        setNodes,
-        addLog,
-        onFileGenerated
-      );
-
-      // Injeta os dados da requisição no contexto inicial
-      engine.context['webhook_data'] = { 
+      const webhookData = { 
           query: req.query, 
           body: req.body,
           headers: req.headers,
           method: req.method
       };
 
-      // Executa o fluxo
-      await engine.run();
-
-      res.json({
-        success: true,
-        message: "Fluxo executado via gatilho.",
-        logs,
-        files
-      });
+      const result = await executeFlow(flow.nodes, flow.edges, webhookData, flowId);
+      res.json(result);
 
     } catch (error: any) {
       console.error("Erro no gatilho do fluxo:", error);
-      res.status(500).json({ error: error.message });
+      const errorResult = {
+        success: false,
+        flowId,
+        error: error.message,
+        timestamp: new Date().toISOString()
+      };
+      saveToHistory(errorResult);
+      res.status(500).json(errorResult);
     }
   });
 
   // API Endpoint para executar o fluxo via POST direto (sem salvar)
   app.post("/api/execute-flow", async (req, res) => {
     try {
-      const { nodes, edges } = req.body;
+      const { nodes, edges, data } = req.body;
 
       if (!nodes || !Array.isArray(nodes)) {
         return res.status(400).json({ error: "O corpo da requisição deve conter um array 'nodes'." });
@@ -131,51 +188,8 @@ async function startServer() {
         return res.status(400).json({ error: "O corpo da requisição deve conter um array 'edges'." });
       }
 
-      const logs: LogEntry[] = [];
-      const files: GeneratedFile[] = [];
-      let currentNodes = [...nodes];
-
-      // Callbacks simulados para o FlowEngine no backend
-      const setNodes = (updateFn: any) => {
-        if (typeof updateFn === 'function') {
-          currentNodes = updateFn(currentNodes);
-        } else {
-          currentNodes = updateFn;
-        }
-      };
-
-      const addLog = (log: LogEntry) => {
-        logs.push(log);
-      };
-
-      const onFileGenerated = (file: GeneratedFile) => {
-        files.push(file);
-      };
-
-      const engine = new FlowEngine(
-        currentNodes,
-        edges,
-        setNodes,
-        addLog,
-        onFileGenerated
-      );
-
-      // Injeta os dados extras da requisição no contexto se existirem
-      if (req.body.data) {
-          engine.context['webhook_data'] = req.body.data;
-      }
-
-      // Executa o fluxo
-      await engine.run();
-
-      // Retorna o resultado da execução
-      res.json({
-        success: true,
-        message: "Fluxo executado com sucesso.",
-        logs,
-        files,
-        finalNodesState: currentNodes
-      });
+      const result = await executeFlow(nodes, edges, data || {});
+      res.json(result);
 
     } catch (error: any) {
       console.error("Erro na execução do fluxo via API:", error);

@@ -180,6 +180,12 @@ export class FlowEngine {
                 ...(config?.headers || {}) 
             };
 
+            const logBody = method !== 'GET' && body ? (typeof body === 'object' ? JSON.stringify(body).substring(0, 200) : String(body).substring(0, 200)) : 'N/A';
+            this.addLog(createLog(node.id, label, 'INFO', `🚀 Enviando ${method} para: ${url.substring(0, 60)}...`));
+            if (method !== 'GET') {
+                this.addLog(createLog(node.id, label, 'DEBUG', `Payload enviado: ${logBody}${logBody.length >= 200 ? '...' : ''}`));
+            }
+
             const responseData = await this.fetchWithRetry(url, { 
                 method, 
                 headers, 
@@ -214,7 +220,7 @@ export class FlowEngine {
             const aiText = geminiResponse?.candidates?.[0]?.content?.parts?.[0]?.text || "Sem resposta.";
             this.context[node.id] = aiText;
             this.context['input'] = aiText;
-            this.addLog(createLog(node.id, label, 'SUCCESS', `🤖 IA respondeu: ${aiText.substring(0, 50)}...`));
+            this.addLog(createLog(node.id, label, 'SUCCESS', `🤖 IA processou dados com sucesso.`));
             break;
 
           case NodeType.DELAY:
@@ -294,6 +300,27 @@ export class FlowEngine {
               });
               this.addLog(createLog(node.id, label, 'SUCCESS', `💾 Arquivo gerado: ${fileName}`));
             }
+            break;
+
+          case NodeType.INDICATOR:
+            const indicatorName = config?.name || 'Indicador Geral';
+            const inputData = this.context['input'] || {};
+            
+            this.addLog(createLog(node.id, label, 'INFO', `📊 Processando indicador: ${indicatorName}...`));
+            
+            // Simula a geração de lotes baseados nos dados
+            const batchId = `BATCH-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+            const batchData = {
+                id: batchId,
+                indicator: indicatorName,
+                timestamp: new Date().toISOString(),
+                summary: typeof inputData === 'string' ? inputData.substring(0, 50) : 'Dados estruturados processados',
+                status: 'COMPLETED'
+            };
+
+            this.context[node.id] = batchData;
+            this.context['input'] = batchData;
+            this.addLog(createLog(node.id, label, 'SUCCESS', `✅ Lote gerado: ${batchId}`));
             break;
         }
 

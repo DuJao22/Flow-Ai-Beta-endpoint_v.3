@@ -11,6 +11,7 @@ export enum NodeType {
   TELEGRAM = 'telegram',
   GEMINI = 'gemini',
   FILE_SAVE = 'fileSave', // Novo node para salvar arquivos
+  INDICATOR = 'indicator', // Novo node para indicadores e lotes
   START = 'start'
 }
 
@@ -48,7 +49,7 @@ export interface LogEntry {
   timestamp: string;
   nodeId: string;
   nodeLabel: string;
-  level: 'INFO' | 'ERROR' | 'SUCCESS' | 'WARN';
+  level: 'INFO' | 'ERROR' | 'SUCCESS' | 'WARN' | 'DEBUG';
   message: string;
 }
 

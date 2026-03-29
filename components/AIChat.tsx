@@ -134,4 +134,4 @@ const AIChat: React.FC<AIChatProps> = ({ onImportFlow, logs, nodes, edges }) => 
   );
 };
 
-export default AIChat;
+export default React.memo(AIChat);

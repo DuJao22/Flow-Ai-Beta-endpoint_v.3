@@ -21,10 +21,16 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ node, isOpen, onClose
     if (node) {
         const currentConfig = node.data.config || {};
         setConfig(currentConfig);
-        setJsonString(JSON.stringify(currentConfig, null, 2));
         setJsonError(null);
     }
   }, [node]);
+
+  // Only reset jsonString when the selected node ID changes to avoid overwriting user input while typing in JSON mode
+  useEffect(() => {
+    if (node) {
+        setJsonString(JSON.stringify(node.data.config || {}, null, 2));
+    }
+  }, [node?.id]);
 
   if (!isOpen || !node) return null;
 
@@ -52,7 +58,7 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ node, isOpen, onClose
   return (
     <div className="fixed inset-0 z-[100] md:absolute md:inset-y-0 md:right-0 md:left-auto md:w-96 flex flex-col pointer-events-none">
       {/* Overlay Mobile */}
-      <div className="absolute inset-0 bg-black/40 md:hidden pointer-events-auto" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/40 md:hidden pointer-events-auto" />
       
       <div className="mt-auto md:mt-0 w-full md:h-full bg-gray-900 border-t md:border-t-0 md:border-l border-gray-800 pointer-events-auto shadow-2xl animate-mobile-up md:animate-none overflow-hidden flex flex-col rounded-t-3xl md:rounded-none">
         
@@ -60,7 +66,7 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ node, isOpen, onClose
         <div className="w-12 h-1.5 bg-gray-700 rounded-full mx-auto my-3 md:hidden" />
 
         {/* HEADER */}
-        <div className="flex items-center justify-between p-5 border-b border-gray-800">
+        <div className="flex items-center justify-between p-5 border-b border-gray-800 bg-gray-900/50 backdrop-blur-sm sticky top-0 z-10">
           <div className="flex items-center gap-3">
              <div className={`w-3 h-3 rounded-full ${node.data.status === 'ERROR' ? 'bg-red-500' : 'bg-blue-500'} animate-pulse`}></div>
              <div>
@@ -68,9 +74,17 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ node, isOpen, onClose
                  <p className="text-[9px] text-gray-500 font-mono uppercase">{node.data.type}</p>
              </div>
           </div>
-          <button onClick={onClose} className="p-2 text-gray-500 hover:text-white transition-colors">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-          </button>
+          <div className="flex items-center gap-2">
+            <button 
+                onClick={onClose} 
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black uppercase tracking-widest rounded-lg transition-all active:scale-95 shadow-lg shadow-blue-900/20"
+            >
+                Concluir
+            </button>
+            <button onClick={onClose} className="p-2 text-gray-500 hover:text-white transition-colors md:hidden">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          </div>
         </div>
 
         {/* TABS SWITCHER */}
@@ -249,15 +263,10 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ node, isOpen, onClose
           )}
         </div>
         
-        {/* FOOTER DESKTOP */}
-        <div className="p-4 bg-gray-900 border-t border-gray-800 hidden md:block">
-           <button onClick={onClose} className="w-full py-3 bg-blue-600 rounded-xl font-bold text-sm shadow-lg shadow-blue-900/20 hover:bg-blue-500 active:scale-95 transition-all text-white">
-               Concluir Edição
-           </button>
-        </div>
+        {/* FOOTER DESKTOP REMOVED - MOVED TO HEADER */}
       </div>
     </div>
   );
 };
 
-export default NodeConfigPanel;
+export default React.memo(NodeConfigPanel);

@@ -1,4 +1,18 @@
 import React, { useState } from 'react';
+import { 
+  Globe, 
+  Zap, 
+  Copy, 
+  Check, 
+  X, 
+  Link as LinkIcon, 
+  Code, 
+  Info, 
+  Terminal,
+  Activity,
+  ArrowRight,
+  MousePointer2
+} from 'lucide-react';
 
 interface ApiTutorialModalProps {
   isOpen: boolean;
@@ -6,131 +20,121 @@ interface ApiTutorialModalProps {
 }
 
 const ApiTutorialModal: React.FC<ApiTutorialModalProps> = ({ isOpen, onClose }) => {
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
-  const endpointUrl = `${window.location.origin}/api/execute-flow`;
+  const executeUrl = `${window.location.origin}/api/execute-flow`;
+  const triggerUrl = `${window.location.origin}/api/trigger/{FLOW_ID}`;
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(endpointUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const handleCopy = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(id);
+    setTimeout(() => setCopied(null), 2000);
   };
 
   const payloadExample = `{
-  "nodes": [
-    {
-      "id": "start-1",
-      "type": "start",
-      "data": { "type": "start", "label": "Início" }
-    },
-    {
-      "id": "http-1",
-      "type": "httpRequest",
-      "data": { 
-        "type": "httpRequest", 
-        "label": "Minha API",
-        "config": { "url": "https://api.exemplo.com/dados", "method": "GET" }
-      }
-    }
-  ],
-  "edges": [
-    {
-      "id": "e-start-http",
-      "source": "start-1",
-      "target": "http-1"
-    }
-  ]
+  "nodes": [...],
+  "edges": [...]
 }`;
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-      <div className="bg-gray-900 border border-gray-800 rounded-xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[300] flex items-center justify-center p-4 animate-in fade-in duration-300">
+      <div className="bg-gray-900 border border-gray-800 rounded-3xl w-full max-w-3xl shadow-[0_0_50px_rgba(0,0,0,0.5)] flex flex-col max-h-[90vh] overflow-hidden">
         
-        <div className="flex items-center justify-between p-4 border-b border-gray-800 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+        {/* Header */}
+        <div className="flex items-center justify-between p-6 border-b border-gray-800 shrink-0 bg-gray-900/50">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-blue-600/20 text-blue-400 flex items-center justify-center shadow-inner">
+              <Zap className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white leading-none">API / Webhook</h2>
-              <p className="text-xs text-gray-400 mt-1">Execute fluxos remotamente via requisição HTTP</p>
+              <h2 className="text-xl font-black text-white uppercase tracking-widest leading-none">Automação & API</h2>
+              <p className="text-[10px] text-gray-500 mt-2 font-bold uppercase tracking-widest">Integre o Flow Architect com qualquer sistema externo</p>
             </div>
           </div>
           <button 
             onClick={onClose}
-            className="text-gray-500 hover:text-white transition-colors p-2 rounded-lg hover:bg-gray-800"
+            className="text-gray-500 hover:text-white transition-all p-2 rounded-xl hover:bg-gray-800 active:scale-90"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            <X className="w-6 h-6" />
           </button>
         </div>
 
-        <div className="p-6 overflow-y-auto space-y-6">
+        <div className="p-8 overflow-y-auto custom-scrollbar space-y-10">
           
-          {/* Endpoint Section */}
-          <section>
-            <h3 className="text-sm font-bold text-gray-300 uppercase tracking-wider mb-3">Endpoint</h3>
-            <div className="flex items-center gap-2 bg-gray-950 border border-gray-800 rounded-lg p-2">
-              <span className="bg-emerald-500/20 text-emerald-400 text-xs font-bold px-2 py-1 rounded">POST</span>
-              <code className="text-sm text-gray-300 flex-1 overflow-x-auto whitespace-nowrap px-2">
-                {endpointUrl}
-              </code>
-              <button 
-                onClick={handleCopy}
-                className="shrink-0 bg-gray-800 hover:bg-gray-700 text-white px-3 py-1.5 rounded text-xs font-medium transition-colors flex items-center gap-2"
-              >
-                {copied ? (
-                  <>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-400"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                    Copiado!
-                  </>
-                ) : (
-                  <>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-                    Copiar
-                  </>
-                )}
-              </button>
+          {/* Webhook Trigger Section */}
+          <section className="space-y-4">
+            <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-emerald-600/20 text-emerald-400 flex items-center justify-center">
+                    <LinkIcon className="w-4 h-4" />
+                </div>
+                <h3 className="text-sm font-black text-white uppercase tracking-widest">1. Gatilho via Webhook (Recomendado)</h3>
             </div>
-            <p className="text-xs text-gray-500 mt-2">
-              Envie uma requisição POST para este endpoint para executar o fluxo de forma invisível no servidor.
+            <p className="text-xs text-gray-400 leading-relaxed">
+                A maneira mais simples de automatizar. Publique seu fluxo e use a URL gerada para disparar a execução de qualquer lugar. Os dados enviados no POST estarão disponíveis no nó <span className="text-emerald-400 font-mono">Webhook Entry</span>.
             </p>
-          </section>
-
-          {/* Payload Section */}
-          <section>
-            <h3 className="text-sm font-bold text-gray-300 uppercase tracking-wider mb-3">Corpo da Requisição (JSON)</h3>
-            <p className="text-xs text-gray-400 mb-3">
-              O corpo da requisição deve conter a estrutura do fluxo (você pode exportar o JSON do fluxo atual clicando em "Exportar JSON" no menu).
-            </p>
-            <div className="bg-gray-950 border border-gray-800 rounded-lg overflow-hidden">
-              <div className="bg-gray-900 border-b border-gray-800 px-4 py-2 flex items-center">
-                <span className="text-xs text-gray-500 font-mono">Content-Type: application/json</span>
+            <div className="flex flex-col gap-2 bg-gray-950 border border-gray-800 rounded-2xl p-4 group">
+              <div className="flex items-center justify-between mb-1">
+                  <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest">URL de Gatilho</span>
+                  <span className="bg-emerald-500/10 text-emerald-400 text-[9px] font-black px-2 py-0.5 rounded border border-emerald-500/20 uppercase">POST</span>
               </div>
-              <pre className="p-4 overflow-x-auto text-xs text-emerald-400 font-mono leading-relaxed">
-                {payloadExample}
-              </pre>
+              <div className="flex items-center gap-3">
+                  <code className="text-[11px] font-mono text-emerald-200 flex-1 truncate">
+                    {triggerUrl}
+                  </code>
+                  <button 
+                    onClick={() => handleCopy(triggerUrl, 'trigger')}
+                    className="shrink-0 bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 flex items-center gap-2"
+                  >
+                    {copied === 'trigger' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    {copied === 'trigger' ? 'Copiado' : 'Copiar'}
+                  </button>
+              </div>
             </div>
           </section>
 
-          {/* Response Section */}
-          <section>
-            <h3 className="text-sm font-bold text-gray-300 uppercase tracking-wider mb-3">Resposta de Sucesso</h3>
-            <div className="bg-gray-950 border border-gray-800 rounded-lg overflow-hidden">
-              <pre className="p-4 overflow-x-auto text-xs text-blue-400 font-mono leading-relaxed">
-{`{
-  "success": true,
-  "message": "Fluxo executado com sucesso.",
-  "logs": [
-    { "level": "SUCCESS", "message": "🟢 Execução iniciada.", "nodeLabel": "Início" }
-  ],
-  "files": [],
-  "finalNodesState": [...]
-}`}
-              </pre>
+          {/* Direct Execution Section */}
+          <section className="space-y-4">
+            <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-blue-600/20 text-blue-400 flex items-center justify-center">
+                    <Code className="w-4 h-4" />
+                </div>
+                <h3 className="text-sm font-black text-white uppercase tracking-widest">2. Execução Direta via API</h3>
+            </div>
+            <p className="text-xs text-gray-400 leading-relaxed">
+                Envie a estrutura completa do JSON do fluxo para execução imediata no servidor. Ideal para sistemas que geram fluxos dinamicamente.
+            </p>
+            <div className="flex flex-col gap-2 bg-gray-950 border border-gray-800 rounded-2xl p-4">
+              <div className="flex items-center justify-between mb-1">
+                  <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Endpoint de Execução</span>
+                  <span className="bg-blue-500/10 text-blue-400 text-[9px] font-black px-2 py-0.5 rounded border border-blue-500/20 uppercase">POST</span>
+              </div>
+              <div className="flex items-center gap-3">
+                  <code className="text-[11px] font-mono text-blue-200 flex-1 truncate">
+                    {executeUrl}
+                  </code>
+                  <button 
+                    onClick={() => handleCopy(executeUrl, 'execute')}
+                    className="shrink-0 bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 flex items-center gap-2"
+                  >
+                    {copied === 'execute' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    {copied === 'execute' ? 'Copiado' : 'Copiar'}
+                  </button>
+              </div>
             </div>
           </section>
+
+          {/* Info Section */}
+          <div className="bg-blue-900/10 border border-blue-500/20 rounded-2xl p-6 flex gap-4">
+              <Info className="w-6 h-6 text-blue-400 shrink-0" />
+              <div className="space-y-2">
+                  <h4 className="text-xs font-black text-blue-300 uppercase tracking-widest">Dica de Automação Total</h4>
+                  <p className="text-[11px] text-gray-400 leading-relaxed">
+                      Você pode configurar um fluxo que recebe um link via Webhook, usa o nó <span className="text-blue-400 font-bold">HTTP Request</span> para buscar os dados desse link, processa com <span className="text-purple-400 font-bold">IA Gemini</span> e envia o resultado final para outro sistema. Tudo isso acontece automaticamente assim que o endpoint é chamado.
+                  </p>
+              </div>
+          </div>
 
         </div>
       </div>

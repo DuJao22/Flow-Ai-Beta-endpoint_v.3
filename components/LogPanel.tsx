@@ -5,9 +5,10 @@ interface LogPanelProps {
   logs: LogEntry[];
   isOpen?: boolean;
   onToggle?: () => void;
+  onSelectNode?: (id: string) => void;
 }
 
-const LogPanel: React.FC<LogPanelProps> = ({ logs, isOpen = true, onToggle }) => {
+const LogPanel: React.FC<LogPanelProps> = ({ logs, isOpen = true, onToggle, onSelectNode }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -76,9 +77,12 @@ const LogPanel: React.FC<LogPanelProps> = ({ logs, isOpen = true, onToggle }) =>
                         {getLevelIcon(log.level)} {log.level}
                     </span>
                     
-                    <span className="text-purple-300 font-bold text-[10px] uppercase tracking-wider bg-purple-900/30 px-2 py-0.5 rounded shrink-0 border border-purple-900/50">
+                    <button 
+                        onClick={() => log.nodeId && onSelectNode?.(log.nodeId)}
+                        className="text-purple-300 font-bold text-[10px] uppercase tracking-wider bg-purple-900/30 px-2 py-0.5 rounded shrink-0 border border-purple-900/50 hover:bg-purple-900/50 transition-colors"
+                    >
                         {log.nodeLabel}
-                    </span>
+                    </button>
                     
                     <div className="h-px bg-gray-800 flex-1 ml-2 opacity-50"></div>
 
